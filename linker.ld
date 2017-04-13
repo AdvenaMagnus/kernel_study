@@ -12,4 +12,9 @@ SECTIONS {
 	{
 		*(.text)
 	}
+	
+	.bss :
+	{
+		*(.bss)
+	}
 }
