@@ -14,3 +14,7 @@ void write_string(char* str){
 void kernel_main(void){
 	write_string("string from kernel_main \n");
 }
+
+void test_func(void){
+	write_string("mustnt be shown");
+}
