@@ -27,3 +27,6 @@ shutil.copyfile(currentdir + "/output/kernel.bin", currentdir+"/"+isobootpath+"/
 
 #create iso
 os.system("grub-mkrescue -o output/os.iso output/iso")
+
+#start
+os.system("python start.py")
