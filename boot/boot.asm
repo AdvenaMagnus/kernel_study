@@ -6,6 +6,8 @@ global load_gdt
 global keyboard_handler_asm
 global test_handler
 global general_protection_fault_asm
+global loadPageDirectory
+global enablePaging
 extern kernel_main
 extern keyboard_handler
 extern test_handler_impl
@@ -119,6 +121,25 @@ general_protection_fault_asm:
     popa
     add esp, 8
     iret
+
+loadPageDirectory:
+	push ebp
+	mov ebp, esp
+	mov eax, [esp+8]
+	mov cr3, eax
+	mov esp, ebp
+	pop ebp
+	ret
+
+enablePaging:
+	push ebp
+	mov ebp, esp
+	mov eax, cr0
+	or eax, 0x80000000
+	mov cr0,  eax
+	mov esp, ebp
+	pop ebp
+	ret
 
 section .bss
 resb 8192;

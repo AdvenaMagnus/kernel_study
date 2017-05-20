@@ -1,4 +1,5 @@
 #include "screen_init.h"
+#include "paging.h"
 #include "keyboard_init.h"
 //#include "gdt_init.h"
 #include "gdt_init2.h"
@@ -29,6 +30,7 @@ bool strcmp(char* str1, char* str2){
 
 void kernel_main(void){
 	clearScreen();
+	paging_init();
 	write_string("Starting kernel...");
 	//gdt_init();
 	gdt_install();

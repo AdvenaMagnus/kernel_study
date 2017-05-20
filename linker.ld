@@ -8,7 +8,7 @@ SECTIONS {
 		*(.multiboot_header)
 	}
 
-	.text :
+	.text 0x1000 :
 	{
 		*(.text)
 	}
