@@ -20,16 +20,14 @@ void run_console(){
 				printc(keyboard_buff[keyboard_buffCount-1]);
 			}
         	}
-		write_string(keyboard_buff);
+		//write_string(keyboard_buff);
 		dispatch_command(keyboard_buff);
 	}
 }
 
 void dispatch_command(char* command){
-	//write_string("command dispatcher");
 	if(strcmp("reboot", command)){
 		write_string("reboot");
-		//asm volatile ("jmp 0x0ffff:0x0");
 		asm volatile ("cli");
 		write_port(0x64, 0xfe);
 	}
@@ -40,5 +38,4 @@ void dispatch_command(char* command){
 	if(strcmp("clear", command)){
 		clearScreen();
 	}
-
 }

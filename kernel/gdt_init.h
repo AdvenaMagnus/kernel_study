@@ -1,84 +1,76 @@
+/* Defines a GDT entry */
+struct gdt_entry
+{
+    unsigned short limit_low;
+    unsigned short base_low;
+    unsigned char base_middle;
+    unsigned char access;
+    unsigned char granularity;
+    unsigned char base_high;
+} __attribute__((packed));
+
+struct gdt_ptr
+{
+    unsigned short limit;
+    unsigned int base;
+} __attribute__((packed));
+
+/* Our GDT, with 3 entries, and finally our special GDT pointer */
+struct gdt_entry gdt[3];
+struct gdt_ptr gp;
+
+/* This is in start.asm. We use this to properly reload
+*  the new segment registers */
+//extern void gdt_flush();
 extern load_gdt(struct gdt_ptr *gdt_ptr);
 
-#define GDT_SIZE 3
-#define GDT_MEM_LOW 0
-#define GDT_MEM_LEN 0xFFFFFFFF
 
-#define GDT_EXE 0x8
-#define GDT_READ 0x2
-#define GDT_WRITE 0x2
-
-/* Kernel code always runs in ring 0 */
-#define DPL_KERNEL 0
-
-/* GDT entry offsets */
-#define GDT_NULL (_GDT_NULL << 3)
-#define KERNEL_CS (_KERNEL_CS << 3)
-#define KERNEL_DS (_KERNEL_DS << 3)
-
-/* GDT entry numbers */
-enum {
-        _GDT_NULL,
-        _KERNEL_CS,
-        _KERNEL_DS
-};
-
-struct GDT_entry {
-        /* Low 8 bits of the "limit", or length of memory this descriptor refers to. */
-        unsigned short limit_low;
-        unsigned short base_low; /* 'Low' 16-bits of the base */
-        unsigned char base_middle; /* 'middle' 8 bits of the base */
-
-        unsigned char type :4; /* Flags for type of memory this descriptor describes */
-        unsigned char one :1;
-        unsigned char dpl :2; /* Descriptor privilege level - Ring level */
-        unsigned char present :1; /* 1 for any valid GDT entry */
-
-        unsigned char limit :4; /* Top 4 bytes of 'limit' */
-        unsigned char avilable :1;
-        unsigned char zero :1;
-        unsigned char op_size :1; /* Selects between 16-bit and 32-bit */
-        unsigned char gran :1; /* If this bit is set, then 'limit' is a count of 4K blocks, not bytes */
-
-        unsigned char base_high; /* High 8 bits of the base */
-} __attribute__((packed));
-
-#define GDT_ENTRY(gdt_type, gdt_base, gdt_limit, gdt_dpl) \
-        {                                                     \
-                .limit_low   = (((gdt_limit) >> 12) & 0xFFFF),    \
-                .base_low    = ((gdt_base) & 0xFFFF),             \
-                .base_middle = (((gdt_base) >> 16) & 0xFF),       \
-                .type = gdt_type,                                 \
-                .one = 1,                                         \
-                .dpl = gdt_dpl,                                   \
-                .present = 1,                                     \
-                .limit = ((gdt_limit) >> 28),                     \
-                .avilable = 0,                                    \
-                .zero = 0,                                        \
-                .op_size = 1,                                     \
-                .gran = 1,                                        \
-                .base_high = (((gdt_base) >> 24) & 0xFF),         \
-}
-
-struct GDT_entry GDT[3] = {
-        [_GDT_NULL] = { 0 /* NULL GDT entry - Required */ },
-        [_KERNEL_CS] = GDT_ENTRY(GDT_EXE | GDT_READ, 0, 0xFFFFFFFF, DPL_KERNEL),
-        [_KERNEL_DS] = GDT_ENTRY(GDT_WRITE,          0, 0xFFFFFFFF, DPL_KERNEL)
-};
-
-struct gdt_ptr {
-        unsigned short limit;
-        unsigned long base;
-} __attribute__((packed));
-
-void gdt_init(void)
+/* Setup a descriptor in the Global Descriptor Table */
+void gdt_set_gate(int num, unsigned long base, unsigned long limit, unsigned char access, unsigned char gran)
 {
-	write_string("GDT init");
-        struct gdt_ptr gdt_ptr;
+    /* Setup the descriptor base address */
+    gdt[num].base_low = (base & 0xFFFF);
+    gdt[num].base_middle = (base >> 16) & 0xFF;
+    gdt[num].base_high = (base >> 24) & 0xFF;
 
-//        gdt_ptr.base = (unsigned long)GDT;
-        gdt_ptr.base = &GDT;
-        gdt_ptr.limit = sizeof(GDT);
-        load_gdt(&gdt_ptr);
+    /* Setup the descriptor limits */
+    gdt[num].limit_low = (limit & 0xFFFF);
+    gdt[num].granularity = ((limit >> 16) & 0x0F);
+
+    /* Finally, set up the granularity and access flags */
+    gdt[num].granularity |= (gran & 0xF0);
+    gdt[num].access = access;
 }
 
+/* Should be called by main. This will setup the special GDT
+*  pointer, set up the first 3 entries in our GDT, and then
+*  finally call gdt_flush() in our assembler file in order
+*  to tell the processor where the new GDT is and update the
+*  new segment registers */
+void gdt_install()
+{
+	write_string("gdt init");
+    /* Setup the GDT pointer and limit */
+    gp.limit = (sizeof(struct gdt_entry) * 3) - 1;
+    gp.base = &gdt;
+
+    /* Our NULL descriptor */
+    gdt_set_gate(0, 0, 0, 0, 0);
+
+    /* The second entry is our Code Segment. The base address
+    *  is 0, the limit is 4GBytes, it uses 4KByte granularity,
+    *  uses 32-bit opcodes, and is a Code Segment descriptor.
+    *  Please check the table above in the tutorial in order
+    *  to see exactly what each value means */
+//    gdt_set_gate(1, 0, 0xFFFFFFFF, 0x9A, 0xCF);
+    gdt_set_gate(1, 0, 0xFFFFFFFF, 0b10011110, 0xCF);
+
+    /* The third entry is our Data Segment. It's EXACTLY the
+    *  same as our code segment, but the descriptor type in
+    *  this entry's access byte says it's a Data Segment */
+//    gdt_set_gate(2, 0, 0xFFFFFFFF, 0x92, 0xCF);
+    gdt_set_gate(2, 0, 0xFFFFFFFF, 0b10010110, 0xCF);
+
+    /* Flush out the old GDT and install the new changes! */
+    load_gdt(&gp);
+}
